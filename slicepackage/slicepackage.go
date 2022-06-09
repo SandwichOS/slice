@@ -72,7 +72,11 @@ func CreatePackageTarball(source string) ([]byte, error) {
 			return err
 		}
 	
-		header.Name = filepath.Join(".", strings.TrimPrefix(path, source))
+		header.Name = strings.TrimPrefix(path, source)
+
+		if len(header.Name) > 0 {
+			header.Name = header.Name[1:]
+		}
 
 		if err = tarball.WriteHeader(header); err != nil {
 			return err
