@@ -57,23 +57,31 @@ func CreatePackageTarball(source string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-
-		header, err := tar.FileInfoHeader(info, info.Name())
+	
+		var link string
+		
+		if info.Mode() & os.ModeSymlink == os.ModeSymlink {
+			if link, err = os.Readlink(path); err != nil {
+				return err
+			}
+		}
+	
+		header, err := tar.FileInfoHeader(info, link)
 
 		if err != nil {
 			return err
 		}
+	
+		header.Name = filepath.Join(".", strings.TrimPrefix(path, source))
 
-		header.Name = "." + strings.TrimPrefix(path, source)
-
-		if err := tarball.WriteHeader(header); err != nil {
+		if err = tarball.WriteHeader(header); err != nil {
 			return err
 		}
-
-		if info.IsDir() {
+	
+		if !info.Mode().IsRegular() {
 			return nil
 		}
-
+	
 		file, err := os.Open(path)
 
 		if err != nil {
