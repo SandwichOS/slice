@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"os"
@@ -57,21 +58,21 @@ func CreatePackageTarball(source string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-	
+
 		var link string
-		
-		if info.Mode() & os.ModeSymlink == os.ModeSymlink {
+
+		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
 			if link, err = os.Readlink(path); err != nil {
 				return err
 			}
 		}
-	
+
 		header, err := tar.FileInfoHeader(info, link)
 
 		if err != nil {
 			return err
 		}
-	
+
 		header.Name = strings.TrimPrefix(path, source)
 
 		if len(header.Name) > 0 {
@@ -81,11 +82,11 @@ func CreatePackageTarball(source string) ([]byte, error) {
 		if err = tarball.WriteHeader(header); err != nil {
 			return err
 		}
-	
+
 		if !info.Mode().IsRegular() {
 			return nil
 		}
-	
+
 		file, err := os.Open(path)
 
 		if err != nil {
@@ -104,4 +105,93 @@ func CreatePackageTarball(source string) ([]byte, error) {
 	}
 
 	return buffer.Bytes(), nil
+}
+
+func GetPackageMetadata(source []byte) (Package, error) {
+	buffer := new(bytes.Buffer)
+	buffer.Write(source)
+
+	tarball := tar.NewReader(buffer)
+
+	metadataBuffer := new(bytes.Buffer)
+
+	for {
+		header, err := tarball.Next()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return Package{"", "", "", "", []string{}, ""}, err
+		}
+
+		if header.Name != "metadata.json" {
+			continue
+		}
+
+		if _, err := io.Copy(metadataBuffer, tarball); err != nil {
+			return Package{"", "", "", "", []string{}, ""}, err
+		}
+
+		break
+	}
+
+	var packageMetadata Package
+
+	err := json.Unmarshal(metadataBuffer.Bytes(), &packageMetadata)
+
+	if err != nil {
+		return Package{"", "", "", "", []string{}, ""}, err
+	}
+
+	return packageMetadata, nil
+}
+
+func ExtractPackageTarball(source []byte, target string) error {
+	buffer := new(bytes.Buffer)
+	buffer.Write(source)
+
+	tarReader := tar.NewReader(buffer)
+
+	for {
+		header, err := tarReader.Next()
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		path := filepath.Join(target, header.Name)
+		info := header.FileInfo()
+
+		if info.IsDir() {
+			if err = os.MkdirAll(path, info.Mode()); err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+			os.Symlink(filepath.Join(filepath.Dir(path), header.Linkname), path)
+			continue
+		}
+
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+		_, err = io.Copy(file, tarReader)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -51,17 +51,27 @@ func main() {
 			panic(err)
 		}
 
-		// Parse file
+		decompressedData := slicepackage.DecompressData(data)
 
-		var packageMetadata slicepackage.Package
-
-		err = json.Unmarshal(data, &packageMetadata)
+		packageMetadata, err := slicepackage.GetPackageMetadata(decompressedData)
 
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println("Installing package: " + packageMetadata.Name + " (Architecture: " + packageMetadata.Architecture + ")...")
+		installDirectory, ok := os.LookupEnv("SLICE_DESTDIR")
+
+		if !ok {
+			installDirectory = "/"
+		}
+
+		if installDirectory == "/" {
+			fmt.Println("Installing package: " + packageMetadata.Name + " (Architecture: " + packageMetadata.Architecture + ")...")
+		} else {
+			fmt.Println("Installing package: " + packageMetadata.Name + " (Architecture: " + packageMetadata.Architecture + ") to " + installDirectory + "...")
+		}
+
+		slicepackage.ExtractPackageTarball(decompressedData, installDirectory)
 	default:
 		fmt.Println("???")
 	}
