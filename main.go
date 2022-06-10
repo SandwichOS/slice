@@ -72,6 +72,28 @@ func main() {
 		}
 
 		slicepackage.ExtractPackageTarball(decompressedData, installDirectory)
+	case "info":
+		// Read file
+
+		data, err := ioutil.ReadFile(os.Args[2])
+
+		if err != nil {
+			panic(err)
+		}
+
+		decompressedData := slicepackage.DecompressData(data)
+
+		packageMetadata, err := slicepackage.GetPackageMetadata(decompressedData)
+
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Package name:", packageMetadata.Name)
+		fmt.Println("Package version:", packageMetadata.Version)
+		fmt.Println("Package architecture:", packageMetadata.Architecture)
+		fmt.Println("Package Maintainer:", packageMetadata.Maintainer)
+		fmt.Println("Package Description:", packageMetadata.Description)
 	default:
 		fmt.Println("???")
 	}
