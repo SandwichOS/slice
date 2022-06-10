@@ -175,7 +175,7 @@ func ExtractPackageTarball(source []byte, target string) error {
 		}
 
 		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-			os.Symlink(filepath.Join(filepath.Dir(path), header.Linkname), path)
+			os.Symlink(header.Linkname, path)
 			continue
 		}
 
