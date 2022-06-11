@@ -94,6 +94,36 @@ func main() {
 		fmt.Println("Package architecture:", packageMetadata.Architecture)
 		fmt.Println("Package Maintainer:", packageMetadata.Maintainer)
 		fmt.Println("Package Description:", packageMetadata.Description)
+	case "remove":
+		// Read file
+
+		data, err := ioutil.ReadFile(os.Args[2])
+
+		if err != nil {
+			panic(err)
+		}
+
+		decompressedData := slicepackage.DecompressData(data)
+
+		packageMetadata, err := slicepackage.GetPackageMetadata(decompressedData)
+
+		if err != nil {
+			panic(err)
+		}
+
+		installDirectory, ok := os.LookupEnv("SLICE_DESTDIR")
+
+		if !ok {
+			installDirectory = "/"
+		}
+
+		if installDirectory == "/" {
+			fmt.Println("Removing package: " + packageMetadata.Name + " (Architecture: " + packageMetadata.Architecture + ")...")
+		} else {
+			fmt.Println("Removing package: " + packageMetadata.Name + " (Architecture: " + packageMetadata.Architecture + ") at " + installDirectory + "...")
+		}
+
+		slicepackage.RemovePackage(decompressedData, installDirectory)
 	default:
 		fmt.Println("???")
 	}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -148,6 +149,35 @@ func GetPackageMetadata(source []byte) (Package, error) {
 	return packageMetadata, nil
 }
 
+func GetPackageFilenames(source []byte) ([]string, error) {
+	buffer := new(bytes.Buffer)
+	buffer.Write(source)
+
+	tarball := tar.NewReader(buffer)
+
+	filenames := []string{}
+
+	for {
+		header, err := tarball.Next()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return []string{}, err
+		}
+
+		if header.Name == "metadata.json" {
+			continue
+		}
+
+		filenames = append(filenames, header.Name)
+	}
+
+	return filenames, nil
+}
+
 func ExtractPackageTarball(source []byte, target string) error {
 	buffer := new(bytes.Buffer)
 	buffer.Write(source)
@@ -163,6 +193,10 @@ func ExtractPackageTarball(source []byte, target string) error {
 			return err
 		}
 
+		if header.Name == "metadata.json" {
+			continue
+		}
+
 		path := filepath.Join(target, header.Name)
 		info := header.FileInfo()
 
@@ -175,9 +209,12 @@ func ExtractPackageTarball(source []byte, target string) error {
 		}
 
 		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+			fmt.Println("Creating symlink:", header.Name, "->", header.Linkname)
 			os.Symlink(header.Linkname, path)
 			continue
 		}
+
+		fmt.Println("Installing:", header.Name)
 
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 
@@ -194,4 +231,38 @@ func ExtractPackageTarball(source []byte, target string) error {
 	}
 
 	return nil
+}
+
+func RemovePackage(source []byte, target string) error {
+	filenames, err := GetPackageFilenames(source)
+
+	if err != nil {
+		return err
+	}
+
+	for _, value := range filenames {
+		path := filepath.Join(target, value)
+
+		fmt.Println("Removing:", value)
+		os.Remove(path)
+		RemoveEmptyParentDirectories(filepath.Dir(path))
+	}
+
+	return nil
+}
+
+func RemoveEmptyParentDirectories(directory string) {
+	if directory == "/" {
+		return
+	}
+
+	files, _ := ioutil.ReadDir(directory)
+
+	if len(files) == 0 {
+		_ = os.RemoveAll(directory)
+	} else {
+		return
+	}
+
+	RemoveEmptyParentDirectories(filepath.Dir(directory))
 }
